@@ -17,6 +17,7 @@ from typing import (
     NoReturn,
     Optional,
     Protocol,
+    TypeGuard,
     Union,
     get_args,
     get_origin,
@@ -44,7 +45,7 @@ LOGGER = logging.getLogger("ocpp")
 
 
 class WebSocket(Protocol):
-    async def recv(self) -> str: ...
+    async def recv(self) -> Union[str, bytes]: ...
     async def send(self, payload: Any) -> None: ...
 
 
@@ -182,7 +183,7 @@ def snake_to_camel_case(
     return data
 
 
-def _is_dataclass_instance(input: DataclassInstance) -> bool:
+def _is_dataclass_instance(input: Any) -> TypeGuard[DataclassInstance]:
     """Verify if given `input` is a dataclass."""
     return is_dataclass(input) and not isinstance(input, type)
 
@@ -269,7 +270,7 @@ def remove_nones(
     return data
 
 
-def _raise_key_error(action: str, version: OCPPVersion) -> None:
+def _raise_key_error(action: str, version: OCPPVersion) -> NoReturn | None:
     """
     Checks whether a keyerror returned by _handle_call
     is supported by the OCPP version or is simply
@@ -301,7 +302,7 @@ def _raise_key_error(action: str, version: OCPPVersion) -> None:
                 details={"cause": f"{action} not supported by OCPP{version}."}
             )
 
-    return
+    return None
 
 
 class ChargePoint:
@@ -318,7 +319,7 @@ class ChargePoint:
         self,
         id: str,
         connection: WebSocket,
-        response_timeout: int = 30,
+        response_timeout: float = 30.0,
         logger: logging.Logger = LOGGER,
     ):
         """
@@ -327,7 +328,7 @@ class ChargePoint:
 
             charger_id (str): ID of the charger.
             connection: Connection to CP.
-            response_timeout (int): When no response on a request is received
+            response_timeout (float): When no response on a request is received
                 within this interval, a asyncio.TimeoutError is raised.
             logger: Optional Logger instance used for logging.
                 By default, the 'ocpp' logger is used.
@@ -371,7 +372,7 @@ class ChargePoint:
 
             await self.route_message(message)
 
-    async def route_message(self, raw_msg: str) -> None:
+    async def route_message(self, raw_msg: Union[str, bytes]) -> None:
         """
         Route a message received from a CP.
 
@@ -500,7 +501,7 @@ class ChargePoint:
         self,
         payload: DataclassInstance,
         suppress: bool = True,
-        unique_id: str | None = None,
+        unique_id: Optional[str] = None,
         skip_schema_validation: bool = False,
     ) -> Any:
         """
@@ -578,7 +579,7 @@ class ChargePoint:
         return cls(**snake_case_payload)
 
     async def _get_specific_response(
-        self, unique_id: Union[int, float, str], timeout: Union[int, float]
+        self, unique_id: Optional[str], timeout: Union[int, float]
     ) -> Any:
         """
         Return response with given unique ID or raise an asyncio.TimeoutError.
